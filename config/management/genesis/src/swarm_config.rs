@@ -24,15 +24,18 @@ pub struct SwarmConfig {
 
 impl SwarmConfig {
     pub fn build<T: BuildSwarm>(config_builder: &T, output_dir: &Path) -> Result<Self> {
+        // codereview: operator files, and root key mint.key
         let (mut configs, diem_root_key) = config_builder.build_swarm()?;
         let mut config_files = vec![];
 
         for (index, config) in configs.iter_mut().enumerate() {
             let node_dir = output_dir.join(index.to_string());
+            // codereview: create (validator) node folder
             std::fs::create_dir_all(&node_dir)?;
 
             let node_path = node_dir.join("node.yaml");
             config.set_data_dir(node_dir);
+            // codereview: create genesis.blob and node.yaml under node folder
             config.save(&node_path)?;
             config_files.push(node_path);
         }
