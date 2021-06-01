@@ -20,11 +20,13 @@ structopt = "0.3.21"
 bcs = "0.1.2"
 bytecode-verifier = { path = "../../bytecode-verifier" }
 diem-framework-releases = { path = "../../diem-framework/releases" }
+# codereview: used to view bytecode
 disassembler = { path = "../disassembler" }
 diem-workspace-hack = { path = "../../../common/workspace-hack" }
 diem-types = { path = "../../../types" }
 move-coverage = { path = "../move-coverage" }
 move-core-types = { path = "../../move-core/types" }
+# codereview: used to compile to bytecode
 move-lang = { path = "../../move-lang" }
 move-vm-types = { path = "../../move-vm/types" }
 move-vm-runtime = { path = "../../move-vm/runtime", features = ["debug_module"] }

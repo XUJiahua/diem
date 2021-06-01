@@ -207,6 +207,7 @@ pub fn run(
     if !path.exists() {
         bail!("Script file {:?} does not exist", path)
     };
+    // codereview: get bytecode or compile to bytecode
     let bytecode = if is_bytecode_file(path) {
         assert!(
             state.is_module_path(path) || !contains_module(path),

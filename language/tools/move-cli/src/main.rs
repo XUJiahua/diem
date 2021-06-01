@@ -175,6 +175,7 @@ pub enum AnalysisCommand {
 
 fn main() -> Result<()> {
     let move_args = Move::from_args();
+    // codereview: load dependencies (stdlib, diem lib)
     let mode = Mode::new(move_args.mode);
 
     match &move_args.cmd {
