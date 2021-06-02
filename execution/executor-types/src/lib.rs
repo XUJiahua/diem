@@ -31,6 +31,7 @@ type SparseMerkleProof = diem_types::proof::SparseMerkleProof<AccountStateBlob>;
 type SparseMerkleTree = scratchpad::SparseMerkleTree<AccountStateBlob>;
 
 pub trait ChunkExecutor: Send {
+    // codereview: ChunkExecutor execute list of txns, and persist them
     /// Verifies the transactions based on the provided proofs and ledger info. If the transactions
     /// are valid, executes them and commits immediately if execution results match the proofs.
     /// Returns a vector of reconfiguration events in the chunk
@@ -52,6 +53,7 @@ pub trait BlockExecutor: Send {
     /// Reset the internal state including cache with newly fetched latest committed block from storage.
     fn reset(&mut self) -> Result<(), Error>;
 
+    // codereview: BlockExecutor execute block, but without persistence
     /// Executes a block.
     fn execute_block(
         &mut self,

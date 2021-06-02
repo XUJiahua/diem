@@ -28,7 +28,9 @@ pub fn start_consensus(
     node_config: &NodeConfig,
     network_sender: ConsensusNetworkSender,
     network_events: ConsensusNetworkEvents,
+    // codereview: for letting statesync commit txns and sync_to state
     state_sync_client: StateSyncClient,
+    // codereview: for pull txns from mempool
     consensus_to_mempool_sender: mpsc::Sender<ConsensusRequest>,
     diem_db: Arc<dyn DbReader>,
     reconfig_events: diem_channel::Receiver<(), OnChainConfigPayload>,
@@ -38,6 +40,7 @@ pub fn start_consensus(
         .enable_all()
         .build()
         .expect("Failed to create Tokio runtime!");
+    // TODO: what's it
     let storage = Arc::new(StorageWriteProxy::new(node_config, diem_db));
     let txn_manager = Arc::new(MempoolProxy::new(
         consensus_to_mempool_sender,
@@ -45,6 +48,7 @@ pub fn start_consensus(
         node_config.consensus.mempool_txn_pull_timeout_ms,
         node_config.consensus.mempool_executed_txn_timeout_ms,
     ));
+    // TODO: what's it?
     let execution_correctness_manager = ExecutionCorrectnessManager::new(node_config);
     let state_computer = Arc::new(ExecutionProxy::new(
         execution_correctness_manager.client(),
