@@ -59,6 +59,7 @@ pub trait ExecutorProxyTrait: Send {
 
 pub(crate) struct ExecutorProxy {
     storage: Arc<dyn DbReader>,
+    // codereview: core part
     executor: Box<dyn ChunkExecutor>,
     reconfig_subscriptions: Vec<ReconfigSubscription>,
     on_chain_configs: OnChainConfigPayload,

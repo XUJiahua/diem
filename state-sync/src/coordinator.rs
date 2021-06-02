@@ -59,6 +59,7 @@ struct PendingRequestInfo {
 /// * Validator: the ChunkRequests are generated on demand for a specific target LedgerInfo to
 /// synchronize to.
 pub(crate) struct StateSyncCoordinator<T> {
+    // codereview: client is StateSyncClient
     // used to process client requests
     client_events: mpsc::UnboundedReceiver<CoordinatorMessage>,
     // used to send messages (e.g. notifications about newly committed txns) to mempool
@@ -74,6 +75,7 @@ pub(crate) struct StateSyncCoordinator<T> {
     // An initial waypoint: for as long as the local version is less than a version determined by
     // waypoint a node is not going to be abl
     waypoint: Waypoint,
+    // codereview: p2p network
     // Actor for sending chunk requests
     // Manages to whom and how to send chunk requests
     request_manager: RequestManager,
@@ -89,6 +91,7 @@ pub(crate) struct StateSyncCoordinator<T> {
     // queue of incoming long polling requests
     // peer will be notified about new chunk of transactions if it's available before expiry time
     subscriptions: HashMap<PeerNetworkId, PendingRequestInfo>,
+    // codereview: executor is the writer for db
     executor_proxy: T,
 }
 
@@ -117,6 +120,7 @@ impl<T: ExecutorProxyTrait> StateSyncCoordinator<T> {
                 Error::IntegerOverflow("Validator retry timeout has overflown!".into())
             })?,
         };
+        // codereview: send request
         let request_manager = RequestManager::new(
             Duration::from_millis(retry_timeout_val),
             Duration::from_millis(node_config.state_sync.multicast_timeout_ms),
@@ -152,6 +156,7 @@ impl<T: ExecutorProxyTrait> StateSyncCoordinator<T> {
 
         let events: Vec<_> = network_handles
             .into_iter()
+            // codereview: return a func
             .map(|(network_id, _sender, events)| events.map(move |e| (network_id.clone(), e)))
             .collect();
         let mut network_events = select_all(events).fuse();
@@ -159,12 +164,14 @@ impl<T: ExecutorProxyTrait> StateSyncCoordinator<T> {
         loop {
             let _timer = counters::MAIN_LOOP.start_timer();
             ::futures::select! {
+                // codereview: local events
                 msg = self.client_events.select_next_some() => {
                     match msg {
                         CoordinatorMessage::SyncRequest(request) => {
                             let _timer = counters::PROCESS_COORDINATOR_MSG_LATENCY
                                 .with_label_values(&[counters::SYNC_MSG_LABEL])
                                 .start_timer();
+                            // codereview: sync state TODO: global state???
                             if let Err(e) = self.process_sync_request(*request) {
                                 error!(LogSchema::new(LogEntry::SyncRequest).error(&e));
                                 counters::SYNC_REQUEST_RESULT.with_label_values(&[counters::FAIL_LABEL]).inc();
@@ -174,6 +181,7 @@ impl<T: ExecutorProxyTrait> StateSyncCoordinator<T> {
                             let _timer = counters::PROCESS_COORDINATOR_MSG_LATENCY
                                 .with_label_values(&[counters::COMMIT_MSG_LABEL])
                                 .start_timer();
+                            // codereview: TODO: update state based on committed transactions ?
                             if let Err(e) = self.process_commit_notification(notification.committed_transactions, Some(notification.callback), notification.reconfiguration_events, None).await {
                                 counters::CONSENSUS_COMMIT_FAIL_COUNT.inc();
                                 error!(LogSchema::event_log(LogEntry::ConsensusCommit, LogEvent::PostCommitFail).error(&e));
@@ -189,6 +197,7 @@ impl<T: ExecutorProxyTrait> StateSyncCoordinator<T> {
                         }
                     };
                 },
+                // codereview: network events
                 (network_id, event) = network_events.select_next_some() => {
                     match event {
                         Event::NewPeer(metadata) => {
@@ -332,6 +341,7 @@ impl<T: ExecutorProxyTrait> StateSyncCoordinator<T> {
         if self.is_initialized() {
             Self::send_initialization_callback(cb_sender)?;
         } else {
+            // TODO: ???
             self.initialization_listener = Some(cb_sender);
         }
 

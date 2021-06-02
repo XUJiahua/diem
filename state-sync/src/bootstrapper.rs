@@ -18,13 +18,16 @@ use tokio::runtime::{Builder, Runtime};
 /// Creates and bootstraps new state syncs and creates clients for
 /// communicating with those state syncs.
 pub struct StateSyncBootstrapper {
+    // codereview: seems no use
     _runtime: Runtime,
+    // codereview: for creating StateSyncClient, so client(s) will contact coordinator
     coordinator_sender: mpsc::UnboundedSender<CoordinatorMessage>,
 }
 
 impl StateSyncBootstrapper {
     pub fn bootstrap(
         network: Vec<(NodeNetworkId, StateSyncSender, StateSyncEvents)>,
+        // codereview: statesync -> mempool, notify transaction committed
         state_sync_to_mempool_sender: mpsc::Sender<diem_mempool::CommitNotification>,
         storage: Arc<dyn DbReader>,
         executor: Box<dyn ChunkExecutor>,
@@ -38,6 +41,7 @@ impl StateSyncBootstrapper {
             .build()
             .expect("[State Sync] Failed to create runtime!");
 
+        // codereview: TODO: why executor proxy?
         let executor_proxy = ExecutorProxy::new(storage, executor, reconfig_event_subscriptions);
         Self::bootstrap_with_executor_proxy(
             runtime,
@@ -51,6 +55,7 @@ impl StateSyncBootstrapper {
 
     pub fn bootstrap_with_executor_proxy<E: ExecutorProxyTrait + 'static>(
         runtime: Runtime,
+        // codereview: may be multiple networks
         network: Vec<(NodeNetworkId, StateSyncSender, StateSyncEvents)>,
         state_sync_to_mempool_sender: mpsc::Sender<diem_mempool::CommitNotification>,
         node_config: &NodeConfig,
@@ -61,6 +66,7 @@ impl StateSyncBootstrapper {
         let initial_state = executor_proxy
             .get_local_storage_state()
             .expect("[State Sync] Starting failure: cannot sync with storage!");
+        // codereview: peers should be maintained at network module
         let network_senders: HashMap<_, _> = network
             .iter()
             .map(|(network_id, sender, _events)| (network_id.clone(), sender.clone()))
@@ -76,14 +82,17 @@ impl StateSyncBootstrapper {
             initial_state,
         )
         .expect("[State Sync] Unable to create state sync coordinator!");
+        // codereview: network has receiver
         runtime.spawn(coordinator.start(network));
 
         Self {
             _runtime: runtime,
+            // codereview: cache it, will be in use when create_client...
             coordinator_sender,
         }
     }
 
+    // codereview: mpsc n * stateSyncClient, 1 * stateSyncCoordinator
     pub fn create_client(&self, commit_timeout_secs: u64) -> StateSyncClient {
         StateSyncClient::new(self.coordinator_sender.clone(), commit_timeout_secs)
     }
