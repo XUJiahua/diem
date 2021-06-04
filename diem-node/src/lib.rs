@@ -173,6 +173,7 @@ fn fetch_chain_id(db: &DbReaderWriter) -> ChainId {
     let blob = db
         .reader
         .get_account_state_with_proof_by_version(
+            // codereview: chain id is stored in root account state
             diem_root_address(),
             (&*db.reader)
                 .fetch_synced_version()
@@ -189,6 +190,7 @@ fn fetch_chain_id(db: &DbReaderWriter) -> ChainId {
         .chain_id()
 }
 
+// codereview: has write permission
 fn setup_chunk_executor(db: DbReaderWriter) -> Box<dyn ChunkExecutor> {
     Box::new(Executor::<DiemVM>::new(db))
 }
@@ -253,6 +255,7 @@ async fn periodic_state_dump(node_config: NodeConfig, db: DbReaderWriter) {
 pub fn setup_environment(node_config: &NodeConfig, logger: Option<Arc<Logger>>) -> DiemHandle {
     let debug_if = setup_debug_interface(&node_config, logger);
 
+    // codereview: metric server is http server based on hyper
     let metrics_port = node_config.debug_interface.metrics_server_port;
     let metric_host = node_config.debug_interface.address.clone();
     thread::spawn(move || metric_server::start_server(metric_host, metrics_port, false));
@@ -263,6 +266,7 @@ pub fn setup_environment(node_config: &NodeConfig, logger: Option<Arc<Logger>>) 
     });
 
     let mut instant = Instant::now();
+    // codereview: setup database
     let (diem_db, db_rw) = DbReaderWriter::wrap(
         DiemDB::open(
             &node_config.storage.dir(),
@@ -272,7 +276,11 @@ pub fn setup_environment(node_config: &NodeConfig, logger: Option<Arc<Logger>>) 
         )
         .expect("DB should open."),
     );
+    // get account state with proof
+    // save transaction
+    // get startup info
     let _simple_storage_service = start_storage_service_with_db(&node_config, Arc::clone(&diem_db));
+    // TODO: backup server (http)
     let backup_service = start_backup_service(
         node_config.storage.backup_service_address,
         Arc::clone(&diem_db),
@@ -281,6 +289,7 @@ pub fn setup_environment(node_config: &NodeConfig, logger: Option<Arc<Logger>>) 
     let genesis_waypoint = node_config.base.waypoint.genesis_waypoint();
     // if there's genesis txn and waypoint, commit it if the result matches.
     if let Some(genesis) = get_genesis_txn(&node_config) {
+        // codereview: execute genesis block
         maybe_bootstrap::<DiemVM>(&db_rw, genesis, genesis_waypoint)
             .expect("Db-bootstrapper should not fail.");
     } else {
@@ -293,6 +302,7 @@ pub fn setup_environment(node_config: &NodeConfig, logger: Option<Arc<Logger>>) 
     );
 
     instant = Instant::now();
+    // codereview: executor write transactions to db
     let chunk_executor = setup_chunk_executor(db_rw.clone());
     debug!(
         "ChunkExecutor setup in {} ms",
@@ -302,6 +312,7 @@ pub fn setup_environment(node_config: &NodeConfig, logger: Option<Arc<Logger>>) 
     let mut network_runtimes = vec![];
     let mut state_sync_network_handles = vec![];
     let mut mempool_network_handles = vec![];
+    // codereview: at most one consensus network as at most one validator per node
     let mut consensus_network_handles = None;
     let mut reconfig_subscriptions = vec![];
 
@@ -316,6 +327,7 @@ pub fn setup_environment(node_config: &NodeConfig, logger: Option<Arc<Logger>>) 
     }
 
     // Gather all network configs into a single vector.
+    // codereview: TODO: one node may be validator and full node at the same time???
     let mut network_configs: Vec<&NetworkConfig> = node_config.full_node_networks.iter().collect();
     if let Some(network_config) = node_config.validator_network.as_ref() {
         network_configs.push(network_config);
@@ -323,6 +335,7 @@ pub fn setup_environment(node_config: &NodeConfig, logger: Option<Arc<Logger>>) 
 
     let mut network_builders = Vec::new();
 
+    // codereview: TODO: why multiple networks?
     // Instantiate every network and collect the requisite endpoints for state_sync, mempool, and consensus.
     for (idx, network_config) in network_configs.into_iter().enumerate() {
         // Perform common instantiation steps
@@ -343,6 +356,8 @@ pub fn setup_environment(node_config: &NodeConfig, logger: Option<Arc<Logger>>) 
             state_sync_events,
         ));
 
+        // codereview: mempool network protocol
+        // TODO: read deeply...
         // Create the endpoints to connect the Network to mempool.
         let (mempool_sender, mempool_events) = network_builder.add_protocol_handler(
             diem_mempool::network::network_endpoint_config(MEMPOOL_NETWORK_CHANNEL_BUFFER_SIZE),
@@ -353,6 +368,7 @@ pub fn setup_environment(node_config: &NodeConfig, logger: Option<Arc<Logger>>) 
             mempool_events,
         ));
 
+        // codereview: at most 1 validator network in config
         // Perform steps relevant specifically to Validator networks.
         if network_id.is_validator_network() {
             // A valid config is allowed to have at most one ValidatorNetwork
@@ -361,6 +377,7 @@ pub fn setup_environment(node_config: &NodeConfig, logger: Option<Arc<Logger>>) 
                 panic!("There can be at most one validator network!");
             }
 
+            // codereview: At most one validator network among networks
             consensus_network_handles = Some(
                 network_builder
                     .add_protocol_handler(consensus::network_interface::network_endpoint_config()),
@@ -402,9 +419,12 @@ pub fn setup_environment(node_config: &NodeConfig, logger: Option<Arc<Logger>>) 
     let (state_sync_to_mempool_sender, state_sync_requests) =
         channel(INTRA_NODE_CHANNEL_BUFFER_SIZE);
     let state_sync_bootstrapper = StateSyncBootstrapper::bootstrap(
+        // codereview: interact with network module
         state_sync_network_handles,
+        // codereview: interact with mempool module
         state_sync_to_mempool_sender,
         Arc::clone(&db_rw.reader),
+        // codereview: for execute and commit transactions
         chunk_executor,
         node_config,
         genesis_waypoint,
@@ -412,18 +432,23 @@ pub fn setup_environment(node_config: &NodeConfig, logger: Option<Arc<Logger>>) 
     );
     let (mp_client_sender, mp_client_events) = channel(AC_SMP_CHANNEL_BUFFER_SIZE);
 
+    // codereview: json rpc server, write operation (transaction) is forwarded to (local) mempool via message channel
     let rpc_runtime = bootstrap_rpc(&node_config, chain_id, diem_db.clone(), mp_client_sender);
 
     let mut consensus_runtime = None;
     let (consensus_to_mempool_sender, consensus_requests) = channel(INTRA_NODE_CHANNEL_BUFFER_SIZE);
 
+    // codereview: mempool setup
     instant = Instant::now();
     let mempool = diem_mempool::bootstrap(
         node_config,
         Arc::clone(&db_rw.reader),
         mempool_network_handles,
+        // codereview: receive transaction from JSON-RPC
         mp_client_events,
+        // codereview: receive messages from CONSENSUS
         consensus_requests,
+        // codereview: receive messages from STATE-SYNC
         state_sync_requests,
         mempool_reconfig_events,
     );
@@ -451,7 +476,9 @@ pub fn setup_environment(node_config: &NodeConfig, logger: Option<Arc<Logger>>) 
             node_config,
             consensus_network_sender,
             consensus_network_events,
+            // codereview: let state sync commit transactions
             state_sync_client,
+            // codereview: to mark txns in mempool completed?
             consensus_to_mempool_sender,
             diem_db,
             consensus_reconfig_events,
