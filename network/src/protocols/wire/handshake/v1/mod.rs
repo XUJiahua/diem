@@ -37,6 +37,7 @@ pub enum ProtocolId {
     ConsensusDirectSend = 1,
     MempoolDirectSend = 2,
     StateSyncDirectSend = 3,
+    // codereview: TODO: in no use???
     DiscoveryDirectSend = 4,
     HealthCheckerRpc = 5,
 }

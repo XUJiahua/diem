@@ -68,6 +68,7 @@ type SparseMerkleProof = diem_types::proof::SparseMerkleProof<AccountStateBlob>;
 /// `Executor` implements all functionalities the execution module needs to provide.
 pub struct Executor<V> {
     db: DbReaderWriter,
+    // codereview: TODO: what's it?
     cache: SpeculationCache,
     phantom: PhantomData<V>,
 }
@@ -585,6 +586,7 @@ where
 }
 
 impl<V: VMExecutor> ChunkExecutor for Executor<V> {
+    // codereview: write transactions to db
     fn execute_and_commit_chunk(
         &mut self,
         txn_list_with_proof: TransactionListWithProof,

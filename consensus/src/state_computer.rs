@@ -19,6 +19,7 @@ use std::boxed::Box;
 /// implements StateComputer traits.
 pub struct ExecutionProxy {
     execution_correctness_client: Mutex<Box<dyn ExecutionCorrectness + Send + Sync>>,
+    // codereview: interact with state sync module
     synchronizer: StateSyncClient,
 }
 

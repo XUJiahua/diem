@@ -41,7 +41,9 @@ where
     pub mempool: Arc<Mutex<CoreMempool>>,
     pub config: MempoolConfig,
     pub network_senders: HashMap<NodeNetworkId, MempoolNetworkSender>,
+    // codereview: for get_account_sequence_number
     pub db: Arc<dyn DbReader>,
+    // codereview: vm validator for validating transactions
     pub validator: Arc<RwLock<V>>,
     pub peer_manager: Arc<PeerManager>,
     pub subscribers: Vec<UnboundedSender<SharedMempoolNotification>>,

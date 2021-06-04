@@ -14,6 +14,7 @@ impl MoveVM {
         }
     }
 
+    // codereview: it is the caller's responsibility to ensure cache coherence of the Move VM Loader
     /// Create a new Session backed by the given storage.
     ///
     /// Right now it is the caller's responsibility to ensure cache coherence of the Move VM Loader
